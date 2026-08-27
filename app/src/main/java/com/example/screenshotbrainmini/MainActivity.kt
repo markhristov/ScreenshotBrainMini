@@ -1,47 +1,53 @@
 package com.example.screenshotbrainmini
 
+import android.app.Activity.ScreenCaptureCallback
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.example.screenshotbrainmini.ui.ScreenshotBrainScreen
 import com.example.screenshotbrainmini.ui.theme.ScreenshotBrainMiniTheme
 
 class MainActivity : ComponentActivity() {
+    private val viewModel: ScreenshotBrainViewModel by viewModels()
+    private var screenCaptureCallback: ScreenCaptureCallback? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             ScreenshotBrainMiniTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                val uiState by viewModel.uiState.collectAsState()
+                ScreenshotBrainScreen(
+                    uiState = uiState,
+                    screenshotDetectionAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
+                    onTextChanged = viewModel::updateInputText,
+                    onClassify = viewModel::classifyInput,
+                    onImageSelected = viewModel::importScreenshot,
+                    onDismissMessage = viewModel::clearMessage,
+                )
             }
         }
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+    override fun onStart() {
+        super.onStart()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val callback = ScreenCaptureCallback(viewModel::onScreenshotDetected)
+            screenCaptureCallback = callback
+            registerScreenCaptureCallback(mainExecutor, callback)
+        }
+    }
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    ScreenshotBrainMiniTheme {
-        Greeting("Android")
+    override fun onStop() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            screenCaptureCallback?.let(::unregisterScreenCaptureCallback)
+            screenCaptureCallback = null
+        }
+        super.onStop()
     }
 }
