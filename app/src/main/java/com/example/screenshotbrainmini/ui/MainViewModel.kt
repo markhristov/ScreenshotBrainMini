@@ -1,25 +1,30 @@
-package com.example.screenshotbrainmini
+package com.example.screenshotbrainmini.ui
 
-import android.app.Application
 import android.net.Uri
-import androidx.lifecycle.AndroidViewModel
-import com.example.screenshotbrainmini.classification.OnnxCategoryClassifier
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.screenshotbrainmini.ScreenshotBrainApplication
+import com.example.screenshotbrainmini.classification.Classifier
 import com.example.screenshotbrainmini.ocr.OcrTextRecognizer
-import com.example.screenshotbrainmini.ui.ScreenshotBrainUiState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
-class ScreenshotBrainViewModel(application: Application) : AndroidViewModel(application) {
-    private val ocrRecognizer = OcrTextRecognizer(application)
-    private val mutableUiState = MutableStateFlow(ScreenshotBrainUiState())
+class MainViewModel(
+    private val classifier: Classifier,
+    private val ocrRecognizer: OcrTextRecognizer,
+) : ViewModel() {
+    private val _uiState = MutableStateFlow(ScreenshotBrainUiState())
 
-    private var classifier: OnnxCategoryClassifier? = null
-
-    val uiState: StateFlow<ScreenshotBrainUiState> = mutableUiState.asStateFlow()
+    val uiState: StateFlow<ScreenshotBrainUiState> = _uiState.asStateFlow()
 
     init {
-        loadClassifier(application)
+        updateState { copy(isModelReady = true) }
     }
 
     fun updateInputText(text: String) {
@@ -33,13 +38,11 @@ class ScreenshotBrainViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun classifyInput() {
-        val text = mutableUiState.value.inputText
-        val loadedClassifier = classifier
+        val text = _uiState.value.inputText
 
         when {
             text.isBlank() -> showError("Enter text or import a screenshot first.")
-            loadedClassifier == null -> showError("The classifier is not ready yet.")
-            else -> classifyText(loadedClassifier, text)
+            else -> classifyText(text)
         }
     }
 
@@ -68,14 +71,6 @@ class ScreenshotBrainViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    fun onScreenshotDetected() {
-        updateState {
-            copy(
-                informationMessage = "Screenshot detected. Tap Import screenshot to analyze its text.",
-            )
-        }
-    }
-
     fun clearMessage() {
         updateState {
             copy(
@@ -85,26 +80,10 @@ class ScreenshotBrainViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    override fun onCleared() {
-        classifier?.close()
-        ocrRecognizer.close()
-        super.onCleared()
-    }
-
-    private fun loadClassifier(application: Application) {
-        runCatching { OnnxCategoryClassifier(application) }
-            .onSuccess { loadedClassifier ->
-                classifier = loadedClassifier
-                updateState { copy(isModelReady = true) }
-            }
-            .onFailure { exception ->
-                showError("The classifier model could not be loaded: ${exception.readableMessage()}")
-            }
-    }
-
-    private fun classifyText(classifier: OnnxCategoryClassifier, text: String) {
-        runCatching { classifier.classify(text) }
-            .onSuccess { result ->
+    private fun classifyText(text: String) {
+        viewModelScope.launch {
+            try {
+                val result = classifier.classify(text)
                 updateState {
                     copy(
                         classificationResult = result,
@@ -112,10 +91,12 @@ class ScreenshotBrainViewModel(application: Application) : AndroidViewModel(appl
                         errorMessage = null,
                     )
                 }
-            }
-            .onFailure { exception ->
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
                 showError("The text could not be classified: ${exception.readableMessage()}")
             }
+        }
     }
 
     private fun handleRecognizedText(text: String) {
@@ -134,7 +115,7 @@ class ScreenshotBrainViewModel(application: Application) : AndroidViewModel(appl
             copy(
                 inputText = text,
                 isProcessingImage = false,
-                informationMessage = "OCR complete. The extracted text was classified locally.",
+                informationMessage = "OCR complete. The extracted text is ready for classification.",
                 errorMessage = null,
             )
         }
@@ -146,8 +127,22 @@ class ScreenshotBrainViewModel(application: Application) : AndroidViewModel(appl
     }
 
     private fun updateState(transform: ScreenshotBrainUiState.() -> ScreenshotBrainUiState) {
-        mutableUiState.value = mutableUiState.value.transform()
+        _uiState.value = _uiState.value.transform()
     }
 
     private fun Throwable.readableMessage(): String = message ?: javaClass.simpleName
+
+    companion object {
+        val Factory = viewModelFactory {
+            initializer {
+                val application =
+                    this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as ScreenshotBrainApplication
+
+                MainViewModel(
+                    classifier = application.container.classifier,
+                    ocrRecognizer = application.container.ocrTextRecognizer,
+                )
+            }
+        }
+    }
 }

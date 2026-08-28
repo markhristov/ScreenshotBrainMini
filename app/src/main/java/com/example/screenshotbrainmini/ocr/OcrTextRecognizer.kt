@@ -15,13 +15,11 @@ class OcrTextRecognizer(
     fun recognize(uri: Uri, onComplete: (Result<String>) -> Unit) {
         val inputImage = createInputImage(uri, onComplete) ?: return
 
-        recognizer.process(inputImage)
-            .addOnSuccessListener { result ->
-                onComplete(Result.success(result.text.trim()))
-            }
-            .addOnFailureListener { exception ->
-                onComplete(Result.failure(exception))
-            }
+        recognizer.process(inputImage).addOnSuccessListener { result ->
+            onComplete(Result.success(result.text.trim()))
+        }.addOnFailureListener { exception ->
+            onComplete(Result.failure(exception))
+        }
     }
 
     override fun close() {

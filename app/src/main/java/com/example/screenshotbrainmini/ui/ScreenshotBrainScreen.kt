@@ -35,7 +35,6 @@ import java.util.Locale
 @Composable
 fun ScreenshotBrainScreen(
     uiState: ScreenshotBrainUiState,
-    screenshotDetectionAvailable: Boolean,
     onTextChanged: (String) -> Unit,
     onClassify: () -> Unit,
     onImageSelected: (Uri) -> Unit,
@@ -53,7 +52,7 @@ fun ScreenshotBrainScreen(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Header(screenshotDetectionAvailable)
+            Header()
             MessageCard(uiState, onDismissMessage)
             ScreenshotTextField(uiState, onTextChanged)
             ActionButtons(
@@ -74,7 +73,7 @@ fun ScreenshotBrainScreen(
 }
 
 @Composable
-private fun Header(screenshotDetectionAvailable: Boolean) {
+fun Header() {
     Text(
         text = "Screenshot Brain",
         style = MaterialTheme.typography.headlineMedium,
@@ -84,19 +83,10 @@ private fun Header(screenshotDetectionAvailable: Boolean) {
         text = "Import a screenshot or paste OCR text. Classification and OCR stay on this device.",
         style = MaterialTheme.typography.bodyLarge,
     )
-    Text(
-        text = if (screenshotDetectionAvailable) {
-            "Screenshot detection is active while this screen is visible."
-        } else {
-            "Automatic screenshot detection requires Android 14; importing images still works."
-        },
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 @Composable
-private fun ScreenshotTextField(
+fun ScreenshotTextField(
     uiState: ScreenshotBrainUiState,
     onTextChanged: (String) -> Unit,
 ) {
@@ -113,7 +103,7 @@ private fun ScreenshotTextField(
 }
 
 @Composable
-private fun ActionButtons(
+fun ActionButtons(
     uiState: ScreenshotBrainUiState,
     launchImagePicker: (PickVisualMediaRequest) -> Unit,
     onClassify: () -> Unit,
@@ -142,7 +132,7 @@ private fun ActionButtons(
 }
 
 @Composable
-private fun ProcessingIndicator() {
+fun ProcessingIndicator() {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -153,7 +143,7 @@ private fun ProcessingIndicator() {
 }
 
 @Composable
-private fun MessageCard(
+fun MessageCard(
     uiState: ScreenshotBrainUiState,
     onDismissMessage: () -> Unit,
 ) {
@@ -183,7 +173,7 @@ private fun MessageCard(
 }
 
 @Composable
-private fun ClassificationCard(result: ClassificationResult) {
+fun ClassificationCard(result: ClassificationResult) {
     val rankedConfidences = result.confidences.entries.sortedByDescending { it.value }
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -211,18 +201,17 @@ private fun ClassificationCard(result: ClassificationResult) {
 }
 
 @Composable
-private fun CategoryConfidenceRow(category: String, confidence: Float) {
+fun CategoryConfidenceRow(category: String, confidence: Double) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(category, modifier = Modifier.weight(1f))
             Text(confidence.asPercent())
         }
         LinearProgressIndicator(
-            progress = { confidence },
+            progress = { confidence.toFloat() },
             modifier = Modifier.fillMaxWidth(),
         )
     }
 }
 
-private fun Float.asPercent(): String =
-    "%.1f%%".format(Locale.ROOT, this * 100f)
+private fun Double.asPercent(): String = "%.1f%%".format(Locale.ROOT, this * 100f)

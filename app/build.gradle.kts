@@ -3,6 +3,27 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val dotEnvValues = rootProject.file(".env")
+    .takeIf { it.exists() }
+    ?.readLines()
+    ?.map(String::trim)
+    ?.filter { line -> line.isNotEmpty() && !line.startsWith("#") && "=" in line }
+    ?.associate { line ->
+        val (key, value) = line.split("=", limit = 2)
+        key.trim() to value.trim().removeSurrounding("\"").removeSurrounding("'")
+    }
+    .orEmpty()
+
+val classifierApiUrl = providers
+    .environmentVariable("CLASSIFIER_API_URL")
+    .orNull
+    ?: dotEnvValues["CLASSIFIER_API_URL"]
+    ?: error("CLASSIFIER_API_URL must be defined in the root .env file or process environment.")
+
+val escapedClassifierApiUrl = classifierApiUrl
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     namespace = "com.example.screenshotbrainmini"
     compileSdk {
@@ -17,6 +38,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField(
+            type = "String",
+            name = "CLASSIFIER_API_URL",
+            value = "\"$escapedClassifierApiUrl\"",
+        )
     }
 
     buildTypes {
@@ -31,6 +57,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }
@@ -43,7 +70,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.onnxruntime.android)

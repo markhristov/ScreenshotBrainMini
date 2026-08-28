@@ -1,37 +1,40 @@
 package com.example.screenshotbrainmini.classification
 
-import android.content.Context
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import java.io.Closeable
 
-class OnnxCategoryClassifier(context: Context) : Closeable {
+class OnnxCategoryClassifier(context: Context) : Classifier, Closeable {
     private val environment = OrtEnvironment.getEnvironment()
     private val session = createSession(context)
     private val labels = loadLabels(context)
 
-    fun classify(text: String): ClassificationResult {
-        val inputValues = arrayOf(arrayOf(text))
+    override suspend fun classify(text: String): ClassificationResult =
+        withContext(Dispatchers.Default) {
+            val inputValues = arrayOf(arrayOf(text))
 
-        OnnxTensor.createTensor(environment, inputValues).use { inputTensor ->
-            val inputs = mapOf(session.inputNames.first() to inputTensor)
+            OnnxTensor.createTensor(environment, inputValues).use { inputTensor ->
+                val inputs = mapOf(session.inputNames.first() to inputTensor)
 
-            session.run(inputs).use { outputs ->
-                val scores = readProbabilityScores(outputs)
-                val predictedIndex = scores.indices.maxBy { scores[it] }
+                session.run(inputs).use { outputs ->
+                    val scores = readProbabilityScores(outputs)
+                    val predictedIndex = scores.indices.maxBy { scores[it] }
 
-                return ClassificationResult(
-                    predictedCategory = labels[predictedIndex],
-                    confidence = scores[predictedIndex],
-                    confidences = labels.indices.associate { index ->
-                        labels[index] to scores[index]
-                    },
-                )
+                    ClassificationResult(
+                        predictedCategory = labels[predictedIndex],
+                        confidence = scores[predictedIndex].toDouble(),
+                        confidences = labels.indices.associate { index ->
+                            labels[index] to scores[index].toDouble()
+                        },
+                    )
+                }
             }
         }
-    }
 
     override fun close() {
         session.close()
