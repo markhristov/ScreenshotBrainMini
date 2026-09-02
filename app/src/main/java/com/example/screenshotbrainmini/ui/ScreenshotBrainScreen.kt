@@ -95,7 +95,7 @@ fun ScreenshotTextField(
         onValueChange = onTextChanged,
         modifier = Modifier.fillMaxWidth(),
         label = { Text("Screenshot text") },
-        placeholder = { Text("Paste text here, or import a screenshot to run OCR…") },
+        placeholder = { Text("Paste text here, or import a screenshot to run OCR...") },
         minLines = 7,
         maxLines = 14,
         enabled = !uiState.isProcessingImage,

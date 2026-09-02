@@ -10,7 +10,8 @@ import java.net.URL
 class CloudCategoryClassifier : Classifier {
     override suspend fun classify(text: String): ClassificationResult =
         withContext(Dispatchers.IO) {
-            val connection = URL("${BuildConfig.CLASSIFIER_API_URL.trimEnd('/')}/predict")
+            val url = BuildConfig.CLASSIFIER_API_URL.trimEnd('/')
+            val connection = URL("$url/predict")
                 .openConnection() as HttpURLConnection
 
             try {
